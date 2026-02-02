@@ -156,7 +156,9 @@
       try {
         const iframe = player.getIframe && player.getIframe();
         if (iframe && iframe.setAttribute) {
-          iframe.setAttribute('allow', 'autoplay; fullscreen');
+          // include fullscreen and other flags
+          iframe.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+          iframe.setAttribute('allowfullscreen', '');
         }
       } catch (e) {}
 
@@ -198,6 +200,21 @@
 
     // YouTube IFrame API callbacks
     function onPlayerReady(event) {
+      // Try to ensure iframe allows autoplay/fullscreen and that audio is unmuted where possible
+      try {
+        const iframe = player.getIframe && player.getIframe();
+        if (iframe && iframe.setAttribute) {
+          iframe.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+          iframe.setAttribute('allowfullscreen', '');
+        }
+      } catch (e) {}
+
+      // attempt to unmute/set volume (may be blocked until a user gesture; this is best effort)
+      try {
+        if (typeof player.unMute === 'function') player.unMute();
+        if (typeof player.setVolume === 'function') player.setVolume(100);
+      } catch (e) {}
+
       // get duration when possible
       const trySetDuration = () => {
         const d = player.getDuration();
@@ -279,7 +296,8 @@
           disablekb: 1,       // disable keyboard shortcuts that could seek
           fs: 1,              // allow fullscreen
           playsinline: 1,
-          autoplay: 0         // do not autoplay; start via user gesture to ensure audio/unmute works
+          autoplay: 0,        // do not autoplay; start via user gesture to ensure audio/unmute works
+          origin: window.location.origin
         },
         events: {
           'onReady': onPlayerReady,
