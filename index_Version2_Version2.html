@@ -72,15 +72,15 @@
     /************************************************************************
      * CONFIG
      *
-     * VIDEO_ID : YouTube video id (from your shorts link:
-     *            https://youtube.com/shorts/zRCeMOn8Gb4?si=qQ2Wow9OoD1w-kXE)
+     * VIDEO_ID : YouTube video id (from the link you provided:
+     *            https://youtu.be/dY2sORh1SwM)
      * FORM_URL  : Google Form URL to redirect to after the video ends
      *
      * NOTE: This uses the YouTube IFrame Player API so we can detect the exact
      *       "ended" event and control seeking. Browsers and users can still
      *       circumvent JS controls, this is a best-effort approach.
      ************************************************************************/
-    const VIDEO_ID = 'zRCeMOn8Gb4';
+    const VIDEO_ID = 'dY2sORh1SwM';
     const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfL5MQHS-cdhk0r3rKpM2xXZARfmZNpCt6KDpD4D5gZdu_Ecg/viewform';
     const FORWARD_ALLOWANCE = 0.4; // seconds tolerance for tiny jumps
     const POLL_INTERVAL_MS = 250;
@@ -142,9 +142,38 @@
     }
 
     // Click handlers for our play/pause controls
-    playBtn.addEventListener('click', () => {
+    playBtn.addEventListener('click', async () => {
       if (!player) return;
-      player.playVideo();
+      // Unmute and set volume so audio will be audible.
+      try {
+        if (typeof player.unMute === 'function') player.unMute();
+        if (typeof player.setVolume === 'function') player.setVolume(100);
+      } catch (e) {
+        // ignore
+      }
+
+      // Ensure iframe allows fullscreen/autoplay
+      try {
+        const iframe = player.getIframe && player.getIframe();
+        if (iframe && iframe.setAttribute) {
+          iframe.setAttribute('allow', 'autoplay; fullscreen');
+        }
+      } catch (e) {}
+
+      // Request fullscreen on the player container (user gesture - should be allowed)
+      try {
+        const container = document.querySelector('.player-wrap') || document.getElementById('player');
+        const requestFS = container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen || container.msRequestFullscreen;
+        if (requestFS) {
+          // Call and ignore rejection (some browsers require additional user gestures or block fullscreen)
+          requestFS.call(container).catch(() => {});
+        }
+      } catch (e) {}
+
+      // Start playback
+      try {
+        if (typeof player.playVideo === 'function') player.playVideo();
+      } catch (e) {}
     });
     pauseBtn.addEventListener('click', () => {
       if (!player) return;
@@ -182,14 +211,9 @@
           }
           updateTimeUI(lastApproved || 0);
 
-          // Attempt autoplay: mute first to increase chance browsers will allow autoplay,
-          // then start playback. Many browsers block autoplay unless muted.
-          try {
-            if (typeof player.mute === 'function') player.mute();
-            if (typeof player.playVideo === 'function') player.playVideo();
-          } catch (e) {
-            // ignore errors
-          }
+          // NOTE: we do NOT auto-mute or auto-play here to avoid browser autoplay blocks.
+          // Playback with sound is started by the user via the Play button which un-mutes,
+          // sets volume and requests fullscreen before calling playVideo().
         } else {
           // try again shortly (sometimes duration isn't ready immediately)
           setTimeout(trySetDuration, 300);
@@ -255,7 +279,7 @@
           disablekb: 1,       // disable keyboard shortcuts that could seek
           fs: 1,              // allow fullscreen
           playsinline: 1,
-          autoplay: 1         // attempt to autoplay (we also mute before play to improve success rate)
+          autoplay: 0         // do not autoplay; start via user gesture to ensure audio/unmute works
         },
         events: {
           'onReady': onPlayerReady,
